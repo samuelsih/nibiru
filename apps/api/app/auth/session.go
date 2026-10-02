@@ -8,11 +8,11 @@ import (
 )
 
 type Session struct {
-	ID        uuid.UUID
-	Token     string
-	UserID    uuid.UUID
-	CreatedAt time.Time
-	ExpiresAt time.Time
+	ID        uuid.UUID `db:"id"`
+	Token     string    `db:"token"`
+	UserID    uuid.UUID `db:"user_id"`
+	CreatedAt time.Time `db:"created_at"`
+	ExpiresAt time.Time `db:"expires_at"`
 }
 
 func NewSession(userID uuid.UUID, ttl time.Duration) Session {

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samuelsih/nibiru/api/pkg/trx"
@@ -53,6 +54,58 @@ func (r Repo) FindUserByEmail(ctx context.Context, tx pgx.Tx, email string) (Use
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return User{}, err
+	}
+
+	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[User])
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return User{}, ErrUserNotFound
+		}
+
+		return User{}, err
+	}
+
+	return user, nil
+}
+
+func (r Repo) FindSessionByToken(ctx context.Context, token string) (Session, error) {
+	query, args, err := r.builder.Select("id", "token", "user_id", "created_at", "expires_at").
+		From("sessions").
+		Where(sq.Eq{"token": token}).
+		ToSql()
+	if err != nil {
+		return Session{}, err
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return Session{}, err
+	}
+
+	session, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[Session])
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Session{}, ErrInvalidSession
+		}
+
+		return Session{}, err
+	}
+
+	return session, nil
+}
+
+func (r Repo) FindUserByID(ctx context.Context, id uuid.UUID) (User, error) {
+	query, args, err := r.builder.Select("id", "email", "password", "first_name", "last_name", "created_at").
+		From("users").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return User{}, err
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return User{}, err
 	}

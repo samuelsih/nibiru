@@ -33,8 +33,17 @@ func (s Server) auth() {
 				{
 					Status:      http.StatusOK,
 					Description: "Login succeeded and session cookie set.",
-					Body:        oas.SpecBody[loginResponse](),
+					Body:        oas.SpecBody[userResponse](),
 				},
+			},
+		})
+
+		r.Get("/me", s.authMe, s.MiddlewareAuthenticated()).Spec(oas.Spec{
+			OperationID: "auth-me",
+			Tags:        tag,
+			Security:    []oas.SecurityRequirement{{SessionSecurityScheme: {}}},
+			Responses: []oas.ResponseSpec{
+				{Status: http.StatusOK, Description: "Authenticated user.", Body: oas.SpecBody[userResponse]()},
 			},
 		})
 
@@ -66,9 +75,13 @@ func (r registerRequest) Validate() error {
 			validation.Required,
 			validation.Length(5, 100),
 		),
-		validation.Field(&r.LastName.String,
-			validation.Length(0, 100),
-		),
+		validation.Field(&r.LastName, validation.By(func(any) error {
+			if !r.LastName.Valid {
+				return nil
+			}
+
+			return validation.Validate(r.LastName.String, validation.Length(0, 100))
+		})),
 		validation.Field(&r.Password,
 			validation.Required,
 			validation.Length(8, 72),
@@ -119,7 +132,7 @@ func (r loginRequest) Validate() error {
 	)
 }
 
-type loginResponse struct {
+type userResponse struct {
 	Email     string      `json:"email"     example:"admin@gmail.com"`
 	FirstName string      `json:"firstName" example:"Admin"`
 	LastName  null.String `json:"lastName"  example:"New"`
@@ -154,7 +167,21 @@ func (s Server) authLogin(w http.ResponseWriter, r *http.Request) error {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	return JSONMarshal(w, loginResponse{
+	return JSONMarshal(w, userResponse{
+		Email:     user.Email,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		CreatedAt: user.CreatedAt,
+	})
+}
+
+func (s Server) authMe(w http.ResponseWriter, r *http.Request) error {
+	user, ok := r.Context().Value(userContextKey{}).(auth.User)
+	if !ok {
+		return auth.ErrInvalidSession
+	}
+
+	return JSONMarshal(w, userResponse{
 		Email:     user.Email,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,

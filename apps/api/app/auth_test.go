@@ -191,6 +191,53 @@ func TestHandlerLogin(t *testing.T) {
 	}
 }
 
+func TestHandlerWhoAmI(t *testing.T) {
+	handler := auth.NewHandler(db, sessionTTL)
+	email := uuid.New().String() + "@example.com"
+
+	assert.NoError(t, handler.Register(t.Context(), auth.RegisterRequest{
+		Email:     email,
+		Password:  testPassword,
+		FirstName: "Bujang",
+	}))
+
+	session := login(t, handler, email)
+	user := findUser(t, email)
+
+	expiredToken := uuid.New().String()
+	_, err := db.Exec(t.Context(),
+		`INSERT INTO sessions (id, token, user_id, created_at, expires_at)
+		 VALUES ($1, $2, $3, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour')`,
+		uuid.New(), expiredToken, user.ID)
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		token   string
+		wantErr error
+	}{
+		{name: "valid session", token: session.Token},
+		{name: "unknown token", token: "unknown-token", wantErr: auth.ErrInvalidSession},
+		{name: "expired session", token: expiredToken, wantErr: auth.ErrInvalidSession},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			found, err := handler.WhoAmI(t.Context(), tt.token)
+
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				assert.Equal(t, found, auth.User{})
+
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, found, user)
+		})
+	}
+}
+
 func TestHandlerLogout(t *testing.T) {
 	handler := auth.NewHandler(db, sessionTTL)
 

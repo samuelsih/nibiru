@@ -11,6 +11,10 @@ import (
 	"github.com/samuelsih/nibiru/api/app/auth"
 )
 
+const (
+	SessionSecurityScheme = "cookieAuth"
+)
+
 type Server struct {
 	*oas.APIServer
 
@@ -27,6 +31,8 @@ func Init(r *oas.APIServer, cfg api.Config, db *pgxpool.Pool) {
 		sessionCookieName:   cfg.SessionCookieName,
 		sessionCookieSecure: cfg.SessionCookieSecure,
 	}
+
+	r.Router().RegisterErrorHandler(handleAuthError)
 
 	server.auth()
 }

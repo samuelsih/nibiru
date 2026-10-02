@@ -92,6 +92,16 @@ func (c Config) Webserver() *oas.APIServer {
 		Title:       "Nibiru API",
 		Description: "Nibiru API Documentation",
 		License:     null.ValueFrom(oas.LicenseMIT),
+		SecuritySchemes: map[string]oas.RefT[oas.SecurityScheme]{
+			"cookieAuth": {
+				Value: &oas.SecurityScheme{
+					Type:        oas.SecuritySchemeTypeAPIKey,
+					In:          null.ValueFrom(oas.SecuritySchemeInCookie),
+					Name:        null.StringFrom(c.SessionCookieName),
+					Description: null.StringFrom("Session cookie issued on login."),
+				},
+			},
+		},
 	})
 
 	server.EnableDocUI("/docs")

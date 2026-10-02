@@ -15,6 +15,7 @@ var (
 	ErrEmailDuplicate     = errors.New("email already exists")
 	ErrUserNotFound       = errors.New("user not found")
 	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrInvalidSession     = errors.New("invalid session")
 )
 
 type Handler struct {
@@ -92,6 +93,19 @@ func (h Handler) Login(ctx context.Context, r LoginRequest) (User, Session, erro
 	}
 
 	return user, session, nil
+}
+
+func (h Handler) WhoAmI(ctx context.Context, token string) (User, error) {
+	session, err := h.repo.FindSessionByToken(ctx, token)
+	if err != nil {
+		return User{}, err
+	}
+
+	if session.Expired() {
+		return User{}, ErrInvalidSession
+	}
+
+	return h.repo.FindUserByID(ctx, session.UserID)
 }
 
 func (h Handler) Logout(ctx context.Context, token string) error {
