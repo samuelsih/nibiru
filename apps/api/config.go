@@ -30,6 +30,10 @@ type Config struct {
 	ServerReadHeaderTimeout   time.Duration `env:"SERVER_READ_HEADER_TIMEOUT"   envDefault:"5s"`
 	ServerShutdownTimeout     time.Duration `env:"SERVER_SHUTDOWN_TIMEOUT"      envDefault:"15s"`
 	ServerShutdownHardTimeout time.Duration `env:"SERVER_SHUTDOWN_HARD_TIMEOUT" envDefault:"3s"`
+
+	SessionTTL          time.Duration `env:"SESSION_TTL"           envDefault:"720h"`
+	SessionCookieName   string        `env:"SESSION_COOKIE_NAME"   envDefault:"nibiru_session"`
+	SessionCookieSecure bool          `env:"SESSION_COOKIE_SECURE" envDefault:"true"`
 }
 
 func (c Config) HostPort() string {
@@ -84,9 +88,13 @@ func (c Config) MigrationUp(ctx context.Context, db *pgxpool.Pool) error {
 }
 
 func (c Config) Webserver() *oas.APIServer {
-	return oas.NewServer(httpx.NewRouter(), oas.ServerConfig{
+	server := oas.NewServer(httpx.NewRouter(), oas.ServerConfig{
 		Title:       "Nibiru API",
 		Description: "Nibiru API Documentation",
 		License:     null.ValueFrom(oas.LicenseMIT),
 	})
+
+	server.EnableDocUI("/docs")
+
+	return server
 }

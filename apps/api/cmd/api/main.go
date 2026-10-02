@@ -16,6 +16,7 @@ import (
 	"github.com/samuelsih/golib/httpx"
 	"github.com/samuelsih/golib/slogx"
 	"github.com/samuelsih/nibiru/api"
+	"github.com/samuelsih/nibiru/api/webapi"
 )
 
 func main() {
@@ -52,10 +53,15 @@ func run(ctx context.Context) error {
 	}
 
 	httpHandler := conf.Webserver()
+
 	httpHandler.Use(
 		httpx.MiddlewareRequestID(),
+		httpx.MiddlewareMaxBytes(10*1024*1024),
+		httpx.CORSAllowAll().Handler,
 		httpx.MiddlewareTimeout(conf.ServerRequestTimeout),
 	)
+
+	webapi.Init(httpHandler, conf, db)
 
 	ongoingCtx, stopOngoing := context.WithCancel(ctx)
 	defer stopOngoing()

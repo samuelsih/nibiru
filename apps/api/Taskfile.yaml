@@ -6,7 +6,11 @@ tasks:
     dotenv:
       - .env
     cmd: go run cmd/api/main.go
-  
+
+  test:
+    desc: Run all tests with the race detector
+    cmd: go test -race -count=1 ./...
+
   goget:
     desc: Go get package
     cmd: go get -- {{.CLI_ARGS}}
