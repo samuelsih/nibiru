@@ -1,0 +1,22 @@
+version: "3"
+
+tasks:
+  dev:
+    desc: Run `go run cmd/api/main.go`
+    dotenv:
+      - .env
+    cmd: go run cmd/api/main.go
+  
+  goget:
+    desc: Go get package
+    cmd: go get -- {{.CLI_ARGS}}
+
+  tidy:
+    desc: Go mod tidy
+    cmd: go mod tidy
+
+  migrate:new:
+    desc: Create a new migration
+    dotenv:
+      - .env
+    cmd: sqlmigrate new --migrations-dir migrations -- {{.CLI_ARGS}}
