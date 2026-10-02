@@ -2,7 +2,6 @@ package webapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/samuelsih/golib/httpx"
@@ -29,14 +28,4 @@ func (s Server) MiddlewareAuthenticated() httpx.Middleware {
 			return next(w, r.WithContext(ctx))
 		}
 	}
-}
-
-func handleAuthError(w http.ResponseWriter, _ *http.Request, err error) httpx.HandleState {
-	if errors.Is(err, auth.ErrInvalidSession) {
-		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-
-		return httpx.HandleStop
-	}
-
-	return httpx.HandleContinue
 }

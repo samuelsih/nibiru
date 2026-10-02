@@ -11,7 +11,7 @@ require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/ory/dockertest/v4 v4.0.0
 	github.com/samuelsih/golib/assert v1.1.0
-	github.com/samuelsih/golib/httpx v1.5.0
+	github.com/samuelsih/golib/httpx v1.6.0
 	github.com/samuelsih/golib/oas v1.3.0
 	github.com/samuelsih/golib/slogx v1.0.0
 	github.com/samuelsih/golib/sqlmigration v1.0.1

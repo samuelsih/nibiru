@@ -8,12 +8,35 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/guregu/null/v6"
+	"github.com/samuelsih/golib/httpx"
+	"github.com/samuelsih/golib/httpx/pbd"
 	"github.com/samuelsih/golib/oas"
 	"github.com/samuelsih/nibiru/api/app/auth"
 )
 
 func (s Server) auth() {
 	tag := []string{"Authentication"}
+
+	s.Router().RegisterErrorHandler(func(w http.ResponseWriter, _ *http.Request, apperr error) httpx.HandleState {
+		var status int
+
+		switch {
+		case errors.Is(apperr, auth.ErrEmailDuplicate):
+			status = http.StatusConflict
+		case errors.Is(apperr, auth.ErrInvalidCredentials), errors.Is(apperr, auth.ErrInvalidSession):
+			status = http.StatusUnauthorized
+		case errors.Is(apperr, auth.ErrUserNotFound):
+			status = http.StatusNotFound
+		default:
+			return httpx.HandleContinue
+		}
+
+		_ = pbd.New(status, pbd.WithDetail(apperr.Error())).Write(w)
+
+		return httpx.HandleStop
+	})
+
+	s.Router().RegisterErrorHandler(s.fallbackErrorHandler())
 
 	s.GroupPrefix("/auth", func(r *oas.APIServer) {
 		r.Post("/register", s.authRegister).Spec(oas.Spec{
