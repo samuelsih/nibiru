@@ -40,7 +40,7 @@ func (s Server) auth() {
 
 	s.GroupPrefix("/auth", func(r *oas.APIServer) {
 		r.Post("/register", s.authRegister).Spec(oas.Spec{
-			OperationID: "auth-register",
+			OperationID: "authRegister",
 			Tags:        tag,
 			Body:        oas.SpecBody[registerRequest](),
 			Responses: []oas.ResponseSpec{
@@ -49,7 +49,7 @@ func (s Server) auth() {
 		})
 
 		r.Post("/login", s.authLogin).Spec(oas.Spec{
-			OperationID: "auth-login",
+			OperationID: "authLogin",
 			Tags:        tag,
 			Body:        oas.SpecBody[loginRequest](),
 			Responses: []oas.ResponseSpec{
@@ -62,7 +62,7 @@ func (s Server) auth() {
 		})
 
 		r.Get("/me", s.authMe, s.MiddlewareAuthenticated()).Spec(oas.Spec{
-			OperationID: "auth-me",
+			OperationID: "authMe",
 			Tags:        tag,
 			Security:    []oas.SecurityRequirement{{SessionSecurityScheme: {}}},
 			Responses: []oas.ResponseSpec{
@@ -71,7 +71,7 @@ func (s Server) auth() {
 		})
 
 		r.Post("/logout", s.authLogout).Spec(oas.Spec{
-			OperationID: "auth-logout",
+			OperationID: "authLogout",
 			Tags:        tag,
 			Responses: []oas.ResponseSpec{
 				{Status: http.StatusNoContent, Description: "Session deleted and session cookie cleared."},

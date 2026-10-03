@@ -56,6 +56,7 @@ func run(ctx context.Context) error {
 
 	httpHandler.Use(
 		httpx.MiddlewareRequestID(),
+		webapi.MiddlewareLogger(),
 		httpx.MiddlewareMaxBytes(10*1024*1024),
 		httpx.CORSAllowAll().Handler,
 		httpx.MiddlewareTimeout(conf.ServerRequestTimeout),
