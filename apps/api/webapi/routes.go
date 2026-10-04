@@ -16,6 +16,7 @@ import (
 	"github.com/samuelsih/golib/slogx"
 	"github.com/samuelsih/nibiru/api"
 	"github.com/samuelsih/nibiru/api/app/auth"
+	"github.com/samuelsih/nibiru/api/app/sandbox"
 )
 
 const (
@@ -29,7 +30,8 @@ var (
 type Server struct {
 	*oas.APIServer
 
-	authHandler auth.Handler
+	authHandler    auth.Handler
+	sandboxHandler sandbox.Handler
 
 	sessionCookieName   string
 	sessionCookieSecure bool
@@ -39,6 +41,7 @@ func Init(r *oas.APIServer, cfg api.Config, db *pgxpool.Pool) {
 	server := Server{
 		APIServer:           r,
 		authHandler:         auth.NewHandler(db, cfg.SessionTTL),
+		sandboxHandler:      sandbox.NewHandler(db),
 		sessionCookieName:   cfg.SessionCookieName,
 		sessionCookieSecure: cfg.SessionCookieSecure,
 	}
