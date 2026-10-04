@@ -9,10 +9,13 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/guregu/null/v6 v6.0.0
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/nats-io/nats.go v1.54.0
 	github.com/ory/dockertest/v4 v4.0.0
 	github.com/samuelsih/golib/assert v1.1.0
+	github.com/samuelsih/golib/concx v1.1.0
 	github.com/samuelsih/golib/httpx v1.7.0
 	github.com/samuelsih/golib/oas v1.3.0
+	github.com/samuelsih/golib/slicex v1.1.0
 	github.com/samuelsih/golib/slogx v1.0.0
 	github.com/samuelsih/golib/sqlmigration v1.0.1
 	github.com/samuelsih/golib/sqlmigration/pgx v1.0.0
@@ -35,11 +38,14 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/moby/api v1.54.1 // indirect
 	github.com/moby/moby/client v0.4.0 // indirect
+	github.com/nats-io/nkeys v0.4.16 // indirect
+	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/samuelsih/golib/reflectx v1.1.0 // indirect

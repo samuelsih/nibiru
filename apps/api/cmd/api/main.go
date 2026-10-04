@@ -16,6 +16,7 @@ import (
 	"github.com/samuelsih/golib/httpx"
 	"github.com/samuelsih/golib/slogx"
 	"github.com/samuelsih/nibiru/api"
+	"github.com/samuelsih/nibiru/api/app"
 	"github.com/samuelsih/nibiru/api/webapi"
 )
 
@@ -51,6 +52,19 @@ func run(ctx context.Context) error {
 	if err = conf.MigrationUp(ctx, db); err != nil {
 		return fmt.Errorf("failed to execute migration: %w", err)
 	}
+
+	js, err := conf.ConnectPubSub(rootCtx)
+	if err != nil {
+		return fmt.Errorf("cannot connect pubsub: %w", err)
+	}
+
+	defer js.Conn().Close()
+
+	if err = app.EnsureOutboxStream(rootCtx, js); err != nil {
+		return fmt.Errorf("cannot ensure outbox stream: %w", err)
+	}
+
+	go app.OutboxPoll(rootCtx, db, js)
 
 	httpHandler := conf.Webserver()
 

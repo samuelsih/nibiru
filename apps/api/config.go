@@ -4,14 +4,18 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"log/slog"
 	"net"
 	"strconv"
 	"time"
 
 	"github.com/guregu/null/v6"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/samuelsih/golib/httpx"
 	"github.com/samuelsih/golib/oas"
+	"github.com/samuelsih/golib/slogx"
 	"github.com/samuelsih/golib/sqlmigration"
 	"github.com/samuelsih/golib/sqlmigration/pgx"
 )
@@ -23,6 +27,8 @@ type Config struct {
 	DBConnURL         string        `env:"DATABASE_URL,required"`
 	DBMaxOpenConn     int32         `env:"DATABASE_MAX_OPEN_CONN"     envDefault:"20"`
 	DBMaxLifetimeConn time.Duration `env:"DATABASE_MAX_CONN_LIFETIME" envDefault:"5m"`
+
+	PubSubURL string `env:"PUBSUB_URL,required,notEmpty"`
 
 	ServerHost                string        `env:"SERVER_HOST"                  envDefault:"127.0.0.1"`
 	ServerPort                int           `env:"SERVER_PORT"                  envDefault:"6000"`
@@ -107,4 +113,34 @@ func (c Config) Webserver() *oas.APIServer {
 	server.EnableDocUI("/docs")
 
 	return server
+}
+
+func (c Config) ConnectPubSub(ctx context.Context) (jetstream.JetStream, error) {
+	conn, err := nats.Connect(c.PubSubURL,
+		nats.Name("nibiru-api"),
+		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
+			if err != nil {
+				slog.Warn("NATS disconnected", slogx.ErrorAttr(err))
+			}
+		}),
+		nats.ClosedHandler(func(_ *nats.Conn) {
+			slog.Info("NATS connection closed", slog.String("url", c.PubSubURL))
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to pubsub instance: %w", err)
+	}
+
+	js, err := jetstream.New(conn)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("cannot create jetstream context: %w", err)
+	}
+
+	if _, err = js.AccountInfo(ctx); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("cannot reach jetstream: %w", err)
+	}
+
+	return js, nil
 }
