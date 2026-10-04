@@ -22,6 +22,10 @@ const (
 	SessionSecurityScheme = "cookieAuth"
 )
 
+var (
+	securitySchemes = []oas.SecurityRequirement{{SessionSecurityScheme: {}}}
+)
+
 type Server struct {
 	*oas.APIServer
 
@@ -40,6 +44,7 @@ func Init(r *oas.APIServer, cfg api.Config, db *pgxpool.Pool) {
 	}
 
 	server.auth()
+	server.sandbox()
 }
 
 func (s Server) fallbackErrorHandler() httpx.ErrorHandler {

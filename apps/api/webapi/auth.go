@@ -64,7 +64,7 @@ func (s Server) auth() {
 		r.Get("/me", s.authMe, s.MiddlewareAuthenticated()).Spec(oas.Spec{
 			OperationID: "authMe",
 			Tags:        tag,
-			Security:    []oas.SecurityRequirement{{SessionSecurityScheme: {}}},
+			Security:    securitySchemes,
 			Responses: []oas.ResponseSpec{
 				{Status: http.StatusOK, Description: "Authenticated user.", Body: oas.SpecBody[userResponse]()},
 			},
@@ -73,6 +73,7 @@ func (s Server) auth() {
 		r.Post("/logout", s.authLogout).Spec(oas.Spec{
 			OperationID: "authLogout",
 			Tags:        tag,
+			Security:    securitySchemes,
 			Responses: []oas.ResponseSpec{
 				{Status: http.StatusNoContent, Description: "Session deleted and session cookie cleared."},
 			},

@@ -178,15 +178,14 @@ func OutboxPoll(ctx context.Context, db *pgxpool.Pool, js jetstream.JetStream) {
 	slog.Info("Starting to polling outbox")
 
 	for {
-		err := pollOutboxMessages(ctx, db, js)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			slog.Error("cannot poll outbox messages", slogx.ErrorAttr(err))
-		}
-
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			err := pollOutboxMessages(ctx, db, js)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				slog.Error("cannot poll outbox messages", slogx.ErrorAttr(err))
+			}
 		}
 	}
 }
