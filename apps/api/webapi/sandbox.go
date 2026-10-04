@@ -9,7 +9,6 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/guregu/null/v6"
 	"github.com/samuelsih/golib/oas"
-	"github.com/samuelsih/golib/slicex"
 	"github.com/samuelsih/nibiru/api/app/auth"
 	"github.com/samuelsih/nibiru/api/app/sandbox"
 )
@@ -46,7 +45,7 @@ func (s Server) sandbox() {
 				{
 					Status:      http.StatusCreated,
 					Description: "The created sandbox.",
-					Body:        oas.SpecBody[sandboxResponse](),
+					Body:        oas.SpecBody[sandbox.InstanceSummary](),
 				},
 			},
 		})
@@ -64,18 +63,9 @@ func (p listSandboxesParams) Validate() error {
 	)
 }
 
-type sandboxResponse struct {
-	ID    uuid.UUID     `json:"id"    example:"01924a7d-9b3e-7c1a-8f4b-7c1d2e3f4a5b"`
-	Name  string        `json:"name"  example:"worker-1"`
-	CPU   int           `json:"cpu"   example:"4"`
-	RAM   int           `json:"ram"   example:"8"`
-	Disk  int           `json:"disk"  example:"50"`
-	State sandbox.State `json:"state" example:"running"                              enum:"creating,running,stopping,stopped,starting,deleting,failed"`
-}
-
 type listSandboxesResponse struct {
-	Items      []sandboxResponse     `json:"items"`
-	NextCursor null.Value[uuid.UUID] `json:"nextCursor"`
+	Items      []sandbox.InstanceSummary `json:"items"`
+	NextCursor null.Value[uuid.UUID]     `json:"nextCursor"`
 }
 
 type createSandboxRequest struct {
@@ -83,6 +73,15 @@ type createSandboxRequest struct {
 	CPU  int    `json:"cpu"  example:"4"`
 	RAM  int    `json:"ram"  example:"8"`
 	Disk int    `json:"disk" example:"50"`
+}
+
+func (r createSandboxRequest) Validate() error {
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Length(0, 255)),
+		validation.Field(&r.CPU, validation.Required),
+		validation.Field(&r.RAM, validation.Required),
+		validation.Field(&r.Disk, validation.Required),
+	)
 }
 
 func (s Server) sandboxList(w http.ResponseWriter, r *http.Request) error {
@@ -121,19 +120,13 @@ func (s Server) sandboxList(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	items := slicex.Transform(result.Items, func(item sandbox.InstanceSummary) sandboxResponse {
-		return sandboxResponse{
-			ID:    item.ID,
-			Name:  item.Name,
-			CPU:   item.Spec.CPU,
-			RAM:   item.Spec.MemoryGB,
-			Disk:  item.Spec.DiskGB,
-			State: item.State,
-		}
-	})
+	var nextCursor null.Value[uuid.UUID]
+	if result.NextCursor != uuid.Nil() {
+		nextCursor = null.ValueFrom(result.NextCursor)
+	}
 
 	return JSONMarshal(w, listSandboxesResponse{
-		Items:      items,
-		NextCursor: null.NewValue(result.NextCursor, result.NextCursor != uuid.Nil()),
+		Items:      result.Items,
+		NextCursor: nextCursor,
 	})
 }

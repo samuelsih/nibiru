@@ -3,12 +3,12 @@ package sandbox
 import (
 	"context"
 	"fmt"
-	"slices"
 	"uuid"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	core "github.com/samuelsih/nibiru/api/app/sandbox/internal"
 )
 
 type Repo struct {
@@ -23,21 +23,12 @@ func NewRepo(db *pgxpool.Pool) Repo {
 	}
 }
 
-type instanceSummaryRecord struct {
-	ID       uuid.UUID `db:"id"`
-	Name     string    `db:"name"`
-	CPU      int       `db:"cpu"`
-	MemoryGB int       `db:"memory_gb"`
-	DiskGB   int       `db:"disk_gb"`
-	State    State     `db:"state"`
-}
-
 func (r Repo) ListByOwner(ctx context.Context, ownerID, cursor uuid.UUID, limit int) ([]InstanceSummary, error) {
 	builder := r.builder.
 		Select("id", "name", "cpu", "memory_gb", "disk_gb", "state").
 		From("sandboxes").
 		Where(sq.Eq{"owner_id": ownerID}).
-		Where(sq.NotEq{"state": StateDeleted}).
+		Where(sq.NotEq{"state": core.StateDeleted}).
 		OrderBy("id DESC").
 		Limit(uint64(limit))
 
@@ -55,34 +46,10 @@ func (r Repo) ListByOwner(ctx context.Context, ownerID, cursor uuid.UUID, limit 
 		return nil, fmt.Errorf("cannot query sandboxes: %w", err)
 	}
 
-	records, err := pgx.CollectRows(rows, pgx.RowToStructByName[instanceSummaryRecord])
+	records, err := pgx.CollectRows(rows, pgx.RowToStructByName[InstanceSummary])
 	if err != nil {
 		return nil, fmt.Errorf("cannot collect sandboxes: %w", err)
 	}
 
-	summaries := make([]InstanceSummary, 0, len(records))
-	for record := range slices.Values(records) {
-		summary, err := record.summary()
-		if err != nil {
-			return nil, err
-		}
-
-		summaries = append(summaries, summary)
-	}
-
-	return summaries, nil
-}
-
-func (r instanceSummaryRecord) summary() (InstanceSummary, error) {
-	spec, err := NewSpec(r.CPU, r.MemoryGB, r.DiskGB)
-	if err != nil {
-		return InstanceSummary{}, fmt.Errorf("cannot read sandbox %s: %w", r.ID, err)
-	}
-
-	return InstanceSummary{
-		ID:    r.ID,
-		Name:  r.Name,
-		Spec:  spec,
-		State: r.State,
-	}, nil
+	return records, nil
 }
