@@ -46,6 +46,10 @@ func Init(r *oas.APIServer, cfg api.Config, db *pgxpool.Pool) {
 		sessionCookieSecure: cfg.SessionCookieSecure,
 	}
 
+	server.Router().RegisterErrorHandler(server.authErrorHandler())
+	server.Router().RegisterErrorHandler(server.sandboxErrorHandler())
+	server.Router().RegisterErrorHandler(server.fallbackErrorHandler())
+
 	server.auth()
 	server.sandbox()
 }

@@ -1,4 +1,4 @@
-package app
+package outbox
 
 import (
 	"context"
@@ -16,11 +16,11 @@ import (
 	"github.com/samuelsih/nibiru/api/pkg/trx"
 )
 
-func insertOutboxMessage[T, U any](t *testing.T, p InsertOutboxParam[T, U]) {
+func insertOutboxMessage[T, U any](t *testing.T, p InsertParam[T, U]) {
 	t.Helper()
 
 	err := trx.WithTx(t.Context(), db, func(tx pgx.Tx) error {
-		return InsertOutbox(t.Context(), tx, p)
+		return Insert(t.Context(), tx, p)
 	})
 	assert.NoError(t, err)
 
@@ -31,15 +31,15 @@ func insertOutboxMessage[T, U any](t *testing.T, p InsertOutboxParam[T, U]) {
 	})
 }
 
-func getOutboxMessages(t *testing.T) []OutboxMessage {
+func getOutboxMessages(t *testing.T) []Message {
 	t.Helper()
 
-	var messages []OutboxMessage
+	var messages []Message
 
 	err := trx.WithTx(t.Context(), db, func(tx pgx.Tx) error {
 		var err error
 
-		messages, err = GetOutboxMessages(t.Context(), tx)
+		messages, err = GetMessages(t.Context(), tx)
 
 		return err
 	})
@@ -48,7 +48,7 @@ func getOutboxMessages(t *testing.T) []OutboxMessage {
 	return messages
 }
 
-func findOutboxMessage(t *testing.T, payload any) OutboxMessage {
+func findOutboxMessage(t *testing.T, payload any) Message {
 	t.Helper()
 
 	rows, err := db.Query(t.Context(), `
@@ -57,7 +57,7 @@ func findOutboxMessage(t *testing.T, payload any) OutboxMessage {
 		WHERE payload = $1`, payload)
 	assert.NoError(t, err)
 
-	message, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[OutboxMessage])
+	message, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[Message])
 	assert.NoError(t, err)
 
 	return message
@@ -74,7 +74,7 @@ func countOutboxMessages(t *testing.T, payload any) int {
 	return count
 }
 
-func outboxMessageMarkers(messages []OutboxMessage) []string {
+func outboxMessageMarkers(messages []Message) []string {
 	markers := make([]string, 0, len(messages))
 
 	for message := range slices.Values(messages) {
@@ -91,7 +91,7 @@ func TestInsertOutbox(t *testing.T) {
 		marker := uuid.New().String()
 		payload := map[string]any{"user_id": marker}
 
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Type:     "user.registered",
 			Metadata: null.ValueFrom(map[string]any{"trace_id": marker}),
 			Payload:  payload,
@@ -117,7 +117,7 @@ func TestInsertOutbox(t *testing.T) {
 		marker := uuid.New().String()
 		payload := map[string]any{"user_id": marker}
 
-		insertOutboxMessage(t, InsertOutboxParam[metadata, map[string]any]{
+		insertOutboxMessage(t, InsertParam[metadata, map[string]any]{
 			Type:     "user.registered",
 			Metadata: null.ValueFrom(metadata{TraceID: marker, Attempt: 3}),
 			Payload:  payload,
@@ -132,13 +132,13 @@ func TestInsertOutbox(t *testing.T) {
 	t.Run("stores unknown type when empty", func(t *testing.T) {
 		payload := map[string]any{"marker": uuid.New().String()}
 
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Payload: payload,
 		})
 
 		message := findOutboxMessage(t, payload)
 
-		assert.Equal(t, message.Type, OutboxTypeUnknown)
+		assert.Equal(t, message.Type, TypeUnknown)
 		assert.Nil(t, message.Metadata)
 	})
 
@@ -150,7 +150,7 @@ func TestInsertOutbox(t *testing.T) {
 
 		defer func() { _ = tx.Rollback(context.Background()) }()
 
-		err = InsertOutbox(t.Context(), tx, InsertOutboxParam[map[string]any, map[string]any]{
+		err = Insert(t.Context(), tx, InsertParam[map[string]any, map[string]any]{
 			Type:    "user.registered",
 			Payload: payload,
 		})
@@ -167,13 +167,13 @@ func TestGetOutboxMessages(t *testing.T) {
 		second := uuid.New().String()
 		traceID := uuid.New().String()
 
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Type:     "first",
 			Metadata: null.ValueFrom(map[string]any{"trace_id": traceID}),
 			Payload:  map[string]any{"marker": first},
 		})
 		time.Sleep(time.Millisecond)
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Type:    "second",
 			Payload: map[string]any{"marker": second},
 		})
@@ -190,11 +190,11 @@ func TestGetOutboxMessages(t *testing.T) {
 		delivered := uuid.New().String()
 		undelivered := uuid.New().String()
 
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Type:    "delivered",
 			Payload: map[string]any{"marker": delivered},
 		})
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Type:    "undelivered",
 			Payload: map[string]any{"marker": undelivered},
 		})
@@ -209,14 +209,14 @@ func TestGetOutboxMessages(t *testing.T) {
 		assert.Equal(t, outboxMessageMarkers(messages), []string{undelivered})
 	})
 
-	t.Run("limits messages to OutboxBatch", func(t *testing.T) {
-		markers := make([]string, 0, OutboxBatch+1)
+	t.Run("limits messages to Batch", func(t *testing.T) {
+		markers := make([]string, 0, Batch+1)
 
-		for range OutboxBatch + 1 {
+		for range Batch + 1 {
 			marker := uuid.New().String()
 			markers = append(markers, marker)
 
-			insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+			insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 				Type:    "batched",
 				Payload: map[string]any{"marker": marker},
 			})
@@ -225,14 +225,14 @@ func TestGetOutboxMessages(t *testing.T) {
 
 		messages := getOutboxMessages(t)
 
-		assert.Equal(t, len(messages), OutboxBatch)
-		assert.Equal(t, outboxMessageMarkers(messages), markers[:OutboxBatch])
+		assert.Equal(t, len(messages), Batch)
+		assert.Equal(t, outboxMessageMarkers(messages), markers[:Batch])
 	})
 
 	t.Run("skips messages locked by another transaction", func(t *testing.T) {
 		marker := uuid.New().String()
 
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Type:    "locked",
 			Payload: map[string]any{"marker": marker},
 		})
@@ -242,7 +242,7 @@ func TestGetOutboxMessages(t *testing.T) {
 
 		defer func() { _ = first.Rollback(context.Background()) }()
 
-		locked, err := GetOutboxMessages(t.Context(), first)
+		locked, err := GetMessages(t.Context(), first)
 		assert.NoError(t, err)
 		assert.True(t, slices.Contains(outboxMessageMarkers(locked), marker))
 
@@ -251,7 +251,7 @@ func TestGetOutboxMessages(t *testing.T) {
 
 		defer func() { _ = second.Rollback(context.Background()) }()
 
-		skipped, err := GetOutboxMessages(t.Context(), second)
+		skipped, err := GetMessages(t.Context(), second)
 		assert.NoError(t, err)
 		assert.False(t, slices.Contains(outboxMessageMarkers(skipped), marker))
 	})
@@ -263,19 +263,19 @@ func TestPollOutboxMessages(t *testing.T) {
 		firstMarker := uuid.New().String()
 		secondMarker := uuid.New().String()
 
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Type:    eventType,
 			Payload: map[string]any{"marker": firstMarker},
 		})
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Type:    eventType,
 			Payload: map[string]any{"marker": secondMarker},
 		})
 
-		err := pollOutboxMessages(t.Context(), db, js)
+		err := PublishBatch(t.Context(), db, js)
 		assert.NoError(t, err)
 
-		subject := OutboxSubjectPrefix + "." + eventType
+		subject := SubjectPrefix + "." + eventType
 
 		for marker := range slices.Values([]string{firstMarker, secondMarker}) {
 			message := findOutboxMessage(t, map[string]any{"marker": marker})
@@ -284,7 +284,7 @@ func TestPollOutboxMessages(t *testing.T) {
 			assert.False(t, message.Error.Valid)
 		}
 
-		stream, err := js.Stream(t.Context(), OutboxStream)
+		stream, err := js.Stream(t.Context(), Stream)
 		assert.NoError(t, err)
 
 		consumer, err := stream.CreateOrUpdateConsumer(t.Context(), jetstream.ConsumerConfig{
@@ -318,18 +318,18 @@ func TestPollOutboxMessages(t *testing.T) {
 		eventType := "test." + uuid.New().String()
 		marker := uuid.New().String()
 
-		insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+		insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 			Type:    eventType,
 			Payload: map[string]any{"marker": marker},
 		})
 
-		assert.NoError(t, js.DeleteStream(t.Context(), OutboxStream))
+		assert.NoError(t, js.DeleteStream(t.Context(), Stream))
 
 		t.Cleanup(func() {
-			assert.NoError(t, EnsureOutboxStream(context.Background(), js))
+			assert.NoError(t, EnsureStream(context.Background(), js))
 		})
 
-		err := pollOutboxMessages(t.Context(), db, js)
+		err := PublishBatch(t.Context(), db, js)
 		assert.NoError(t, err)
 
 		message := findOutboxMessage(t, map[string]any{"marker": marker})
@@ -347,7 +347,7 @@ func TestUpdateOutboxMessages(t *testing.T) {
 		secondFailedMarker := uuid.New().String()
 
 		for marker := range slices.Values([]string{deliveredMarker, firstFailedMarker, secondFailedMarker}) {
-			insertOutboxMessage(t, InsertOutboxParam[map[string]any, map[string]any]{
+			insertOutboxMessage(t, InsertParam[map[string]any, map[string]any]{
 				Type:    "test.batch",
 				Payload: map[string]any{"marker": marker},
 			})
@@ -363,7 +363,7 @@ func TestUpdateOutboxMessages(t *testing.T) {
 		secondFailed.MarkAsError(errors.New("second failure"))
 
 		err := trx.WithTx(t.Context(), db, func(tx pgx.Tx) error {
-			return UpdateOutboxMessages(t.Context(), tx, []OutboxMessage{delivered, firstFailed, secondFailed})
+			return UpdateMessages(t.Context(), tx, []Message{delivered, firstFailed, secondFailed})
 		})
 		assert.NoError(t, err)
 

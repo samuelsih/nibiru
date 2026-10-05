@@ -1,4 +1,4 @@
-package app
+package outbox
 
 import (
 	"context"
@@ -21,14 +21,14 @@ import (
 )
 
 const (
-	OutboxBatch         = 10
-	OutboxTypeUnknown   = "unknown"
-	OutboxStream        = "OUTBOX"
-	OutboxSubjectPrefix = "outbox"
-	OutboxPollInterval  = 3 * time.Second
+	Batch         = 10
+	TypeUnknown   = "unknown"
+	Stream        = "OUTBOX"
+	SubjectPrefix = "outbox"
+	PollInterval  = 3 * time.Second
 )
 
-type OutboxMessage struct {
+type Message struct {
 	ID          uuid.UUID   `db:"id"`
 	Type        string      `db:"type"`
 	Metadata    []byte      `db:"metadata"`
@@ -38,29 +38,29 @@ type OutboxMessage struct {
 	CreatedAt   time.Time   `db:"created_at"`
 }
 
-func (m OutboxMessage) Subject() string {
-	return OutboxSubjectPrefix + "." + m.Type
+func (m Message) Subject() string {
+	return SubjectPrefix + "." + m.Type
 }
 
-func (m *OutboxMessage) MarkAsDelivered() {
+func (m *Message) MarkAsDelivered() {
 	m.DeliveredAt = null.TimeFrom(time.Now())
 	m.Error = null.StringFromPtr(nil)
 }
 
-func (m *OutboxMessage) MarkAsError(err error) {
+func (m *Message) MarkAsError(err error) {
 	m.DeliveredAt = null.TimeFromPtr(nil)
 	m.Error = null.StringFrom(err.Error())
 }
 
-type InsertOutboxParam[T, U any] struct {
+type InsertParam[T, U any] struct {
 	Type     string
 	Metadata null.Value[T]
 	Payload  U
 }
 
-func InsertOutbox[T, U any](ctx context.Context, tx pgx.Tx, p InsertOutboxParam[T, U]) error {
+func Insert[T, U any](ctx context.Context, tx pgx.Tx, p InsertParam[T, U]) error {
 	if p.Type == "" {
-		p.Type = OutboxTypeUnknown
+		p.Type = TypeUnknown
 	}
 
 	var metadata T
@@ -85,13 +85,13 @@ func InsertOutbox[T, U any](ctx context.Context, tx pgx.Tx, p InsertOutboxParam[
 	return nil
 }
 
-func GetOutboxMessages(ctx context.Context, tx pgx.Tx) ([]OutboxMessage, error) {
+func GetMessages(ctx context.Context, tx pgx.Tx) ([]Message, error) {
 	query, args, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
 		Select("id", "type", "metadata", "payload", "error", "delivered_at", "created_at").
 		From("outbox_messages").
 		Where(sq.Eq{"delivered_at": nil}).
 		OrderBy("created_at").
-		Limit(OutboxBatch).
+		Limit(Batch).
 		Suffix("FOR UPDATE SKIP LOCKED").
 		ToSql()
 	if err != nil {
@@ -103,7 +103,7 @@ func GetOutboxMessages(ctx context.Context, tx pgx.Tx) ([]OutboxMessage, error) 
 		return nil, fmt.Errorf("cannot query outbox messages: %w", err)
 	}
 
-	messages, err := pgx.CollectRows(rows, pgx.RowToStructByName[OutboxMessage])
+	messages, err := pgx.CollectRows(rows, pgx.RowToStructByName[Message])
 	if err != nil {
 		return nil, fmt.Errorf("cannot collect outbox messages: %w", err)
 	}
@@ -111,14 +111,14 @@ func GetOutboxMessages(ctx context.Context, tx pgx.Tx) ([]OutboxMessage, error) 
 	return messages, nil
 }
 
-func UpdateOutboxMessages(ctx context.Context, tx pgx.Tx, messages []OutboxMessage) error {
+func UpdateMessages(ctx context.Context, tx pgx.Tx, messages []Message) error {
 	builder := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	deliveredMsgs := slicex.Filter(messages, func(message OutboxMessage) bool { return message.Error.IsZero() })
-	failedMsgs := slicex.Filter(messages, func(message OutboxMessage) bool { return message.Error.Valid })
+	deliveredMsgs := slicex.Filter(messages, func(message Message) bool { return message.Error.IsZero() })
+	failedMsgs := slicex.Filter(messages, func(message Message) bool { return message.Error.Valid })
 
-	deliveredIDs := slicex.Transform(deliveredMsgs, func(message OutboxMessage) string { return message.ID.String() })
-	failedIDs := slicex.Transform(failedMsgs, func(message OutboxMessage) string { return message.ID.String() })
+	deliveredIDs := slicex.Transform(deliveredMsgs, func(message Message) string { return message.ID.String() })
+	failedIDs := slicex.Transform(failedMsgs, func(message Message) string { return message.ID.String() })
 
 	if len(deliveredMsgs) > 0 {
 		query, args, err := builder.
@@ -159,10 +159,10 @@ func UpdateOutboxMessages(ctx context.Context, tx pgx.Tx, messages []OutboxMessa
 	return nil
 }
 
-func EnsureOutboxStream(ctx context.Context, js jetstream.JetStream) error {
+func EnsureStream(ctx context.Context, js jetstream.JetStream) error {
 	_, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:     OutboxStream,
-		Subjects: []string{OutboxSubjectPrefix + ".>"},
+		Name:     Stream,
+		Subjects: []string{SubjectPrefix + ".>"},
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create or update outbox stream: %w", err)
@@ -171,8 +171,8 @@ func EnsureOutboxStream(ctx context.Context, js jetstream.JetStream) error {
 	return nil
 }
 
-func OutboxPoll(ctx context.Context, db *pgxpool.Pool, js jetstream.JetStream) {
-	ticker := time.NewTicker(OutboxPollInterval)
+func Poll(ctx context.Context, db *pgxpool.Pool, js jetstream.JetStream) {
+	ticker := time.NewTicker(PollInterval)
 	defer ticker.Stop()
 
 	slog.Info("Starting to polling outbox")
@@ -182,7 +182,7 @@ func OutboxPoll(ctx context.Context, db *pgxpool.Pool, js jetstream.JetStream) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			err := pollOutboxMessages(ctx, db, js)
+			err := PublishBatch(ctx, db, js)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				slog.Error("cannot poll outbox messages", slogx.ErrorAttr(err))
 			}
@@ -190,14 +190,14 @@ func OutboxPoll(ctx context.Context, db *pgxpool.Pool, js jetstream.JetStream) {
 	}
 }
 
-func pollOutboxMessages(ctx context.Context, db *pgxpool.Pool, js jetstream.JetStream) error {
+func PublishBatch(ctx context.Context, db *pgxpool.Pool, js jetstream.JetStream) error {
 	return trx.WithTx(ctx, db, func(tx pgx.Tx) error {
-		messages, err := GetOutboxMessages(ctx, tx)
+		messages, err := GetMessages(ctx, tx)
 		if err != nil {
 			return fmt.Errorf("cannot get outbox messages: %w", err)
 		}
 
-		results := concx.ForEachRes(messages, func(message OutboxMessage) OutboxMessage {
+		results := concx.ForEachRes(messages, func(message Message) Message {
 			_, publishErr := js.Publish(ctx, message.Subject(), message.Payload, jetstream.WithMsgID(message.ID.String()))
 			if publishErr != nil {
 				message.MarkAsError(fmt.Errorf("cannot publish outbox message %s: %w", message.ID, publishErr))
@@ -208,7 +208,7 @@ func pollOutboxMessages(ctx context.Context, db *pgxpool.Pool, js jetstream.JetS
 			return message
 		})
 
-		if err = UpdateOutboxMessages(ctx, tx, results); err != nil {
+		if err = UpdateMessages(ctx, tx, results); err != nil {
 			return fmt.Errorf("cannot update outbox messages: %w", err)
 		}
 

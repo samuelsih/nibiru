@@ -8,10 +8,24 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/guregu/null/v6"
+	"github.com/samuelsih/golib/httpx"
+	"github.com/samuelsih/golib/httpx/pbd"
 	"github.com/samuelsih/golib/oas"
 	"github.com/samuelsih/nibiru/api/app/auth"
 	"github.com/samuelsih/nibiru/api/app/sandbox"
 )
+
+func (s Server) sandboxErrorHandler() httpx.ErrorHandler {
+	return func(w http.ResponseWriter, _ *http.Request, apperr error) httpx.HandleState {
+		if !errors.Is(apperr, sandbox.ErrInvalidSpec) {
+			return httpx.HandleContinue
+		}
+
+		_ = pbd.New(http.StatusUnprocessableEntity, pbd.WithDetail(apperr.Error())).Write(w)
+
+		return httpx.HandleStop
+	}
+}
 
 func (s Server) sandbox() {
 	tag := []string{"Sandbox"}
@@ -35,7 +49,7 @@ func (s Server) sandbox() {
 			},
 		})
 
-		r.Post("/", nil).Spec(oas.Spec{
+		r.Post("/", s.sandboxCreate).Spec(oas.Spec{
 			OperationID: "sandboxCreate",
 			Summary:     "Create a sandbox",
 			Tags:        tag,
@@ -84,6 +98,45 @@ func (r createSandboxRequest) Validate() error {
 	)
 }
 
+func (s Server) sandboxCreate(w http.ResponseWriter, r *http.Request) error {
+	user, ok := r.Context().Value(userContextKey{}).(auth.User)
+	if !ok {
+		return auth.ErrInvalidSession
+	}
+
+	req, err := JSONUnmarshal[createSandboxRequest](r.Body)
+	if err != nil {
+		return err
+	}
+
+	if err := req.Validate(); err != nil {
+		return err
+	}
+
+	instance, err := s.sandboxHandler.Create(r.Context(), sandbox.CreateRequest{
+		OwnerID:  uuid.UUID(user.ID),
+		Name:     req.Name,
+		CPU:      req.CPU,
+		MemoryGB: req.RAM,
+		DiskGB:   req.Disk,
+	})
+	if err != nil {
+		return err
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	return JSONMarshal(w, sandbox.InstanceSummary{
+		ID:    instance.ID,
+		Name:  instance.Name,
+		CPU:   instance.Spec.CPU,
+		RAM:   instance.Spec.MemoryGB,
+		Disk:  instance.Spec.DiskGB,
+		State: instance.State,
+	})
+}
+
 func (s Server) sandboxList(w http.ResponseWriter, r *http.Request) error {
 	user, ok := r.Context().Value(userContextKey{}).(auth.User)
 	if !ok {
@@ -120,13 +173,8 @@ func (s Server) sandboxList(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	var nextCursor null.Value[uuid.UUID]
-	if result.NextCursor != uuid.Nil() {
-		nextCursor = null.ValueFrom(result.NextCursor)
-	}
-
 	return JSONMarshal(w, listSandboxesResponse{
 		Items:      result.Items,
-		NextCursor: nextCursor,
+		NextCursor: null.NewValue(result.NextCursor, result.NextCursor != uuid.Nil()),
 	})
 }

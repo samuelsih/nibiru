@@ -14,10 +14,8 @@ import (
 	"github.com/samuelsih/nibiru/api/app/auth"
 )
 
-func (s Server) auth() {
-	tag := []string{"Authentication"}
-
-	s.Router().RegisterErrorHandler(func(w http.ResponseWriter, _ *http.Request, apperr error) httpx.HandleState {
+func (s Server) authErrorHandler() httpx.ErrorHandler {
+	return func(w http.ResponseWriter, _ *http.Request, apperr error) httpx.HandleState {
 		var status int
 
 		switch {
@@ -34,9 +32,11 @@ func (s Server) auth() {
 		_ = pbd.New(status, pbd.WithDetail(apperr.Error())).Write(w)
 
 		return httpx.HandleStop
-	})
+	}
+}
 
-	s.Router().RegisterErrorHandler(s.fallbackErrorHandler())
+func (s Server) auth() {
+	tag := []string{"Authentication"}
 
 	s.GroupPrefix("/auth", func(r *oas.APIServer) {
 		r.Post("/register", s.authRegister).Spec(oas.Spec{
