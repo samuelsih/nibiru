@@ -7,21 +7,16 @@ import (
 	"uuid"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/guregu/null/v6"
 	"github.com/samuelsih/golib/httpx"
-	"github.com/samuelsih/golib/httpx/pbd"
 	"github.com/samuelsih/golib/oas"
-	"github.com/samuelsih/nibiru/api/app/auth"
-	"github.com/samuelsih/nibiru/api/app/sandbox"
+	"github.com/samuelsih/nibiru/api/app"
 )
 
 func (s Server) sandboxErrorHandler() httpx.ErrorHandler {
 	return func(w http.ResponseWriter, _ *http.Request, apperr error) httpx.HandleState {
-		if !errors.Is(apperr, sandbox.ErrInvalidSpec) {
+		if !errors.Is(apperr, app.ErrInvalidSpec) {
 			return httpx.HandleContinue
 		}
-
-		_ = pbd.New(http.StatusUnprocessableEntity, pbd.WithDetail(apperr.Error())).Write(w)
 
 		return httpx.HandleStop
 	}
@@ -44,7 +39,7 @@ func (s Server) sandbox() {
 				{
 					Status:      http.StatusOK,
 					Description: "A page of sandboxes.",
-					Body:        oas.SpecBody[listSandboxesResponse](),
+					Body:        oas.SpecBody[app.ListResult](),
 				},
 			},
 		})
@@ -54,12 +49,12 @@ func (s Server) sandbox() {
 			Summary:     "Create a sandbox",
 			Tags:        tag,
 			Security:    securitySchemes,
-			Body:        oas.SpecBody[createSandboxRequest](),
+			Body:        oas.SpecBody[app.CreateSandboxRequest](),
 			Responses: []oas.ResponseSpec{
 				{
 					Status:      http.StatusCreated,
 					Description: "The created sandbox.",
-					Body:        oas.SpecBody[sandbox.InstanceSummary](),
+					Body:        oas.SpecBody[app.SandboxSummary](),
 				},
 			},
 		})
@@ -67,44 +62,23 @@ func (s Server) sandbox() {
 }
 
 type listSandboxesParams struct {
-	Cursor uuid.UUID `query:"cursor" description:"Cursor returned as nextCursor by the previous page." example:"01924a7d-9b3e-7c1a-8f4b-7c1d2e3f4a5b" required:"false"`
-	Limit  int       `query:"limit"  description:"Maximum number of sandboxes per page."               example:"20"                                   required:"false"`
+	Cursor uuid.UUID `query:"cursor" example:"01924a7d-9b3e-7c1a-8f4b-7c1d2e3f4a5b" required:"false"`
+	Limit  int       `query:"limit" example:"20"  required:"false"`
 }
 
 func (p listSandboxesParams) Validate() error {
 	return validation.ValidateStruct(&p,
-		validation.Field(&p.Limit, validation.Min(1), validation.Max(sandbox.MaxListLimit)),
-	)
-}
-
-type listSandboxesResponse struct {
-	Items      []sandbox.InstanceSummary `json:"items"`
-	NextCursor null.Value[uuid.UUID]     `json:"nextCursor"`
-}
-
-type createSandboxRequest struct {
-	Name string `json:"name" example:"worker-1" required:"false"`
-	CPU  int    `json:"cpu"  example:"4"`
-	RAM  int    `json:"ram"  example:"8"`
-	Disk int    `json:"disk" example:"50"`
-}
-
-func (r createSandboxRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Length(0, 255)),
-		validation.Field(&r.CPU, validation.Required),
-		validation.Field(&r.RAM, validation.Required),
-		validation.Field(&r.Disk, validation.Required),
+		validation.Field(&p.Limit, validation.Min(1), validation.Max(app.MaxListLimit)),
 	)
 }
 
 func (s Server) sandboxCreate(w http.ResponseWriter, r *http.Request) error {
-	user, ok := r.Context().Value(userContextKey{}).(auth.User)
+	user, ok := r.Context().Value(userContextKey{}).(app.User)
 	if !ok {
-		return auth.ErrInvalidSession
+		return app.ErrInvalidSession
 	}
 
-	req, err := JSONUnmarshal[createSandboxRequest](r.Body)
+	req, err := JSONUnmarshal[app.CreateSandboxRequest](r.Body)
 	if err != nil {
 		return err
 	}
@@ -113,13 +87,9 @@ func (s Server) sandboxCreate(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	instance, err := s.sandboxHandler.Create(r.Context(), sandbox.CreateRequest{
-		OwnerID:  uuid.UUID(user.ID),
-		Name:     req.Name,
-		CPU:      req.CPU,
-		MemoryGB: req.RAM,
-		DiskGB:   req.Disk,
-	})
+	req.OwnerID = user.ID
+
+	instance, err := app.CreateSandbox(r.Context(), s.db, req)
 	if err != nil {
 		return err
 	}
@@ -127,24 +97,24 @@ func (s Server) sandboxCreate(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
-	return JSONMarshal(w, sandbox.InstanceSummary{
+	return JSONMarshal(w, app.SandboxSummary{
 		ID:    instance.ID,
 		Name:  instance.Name,
-		CPU:   instance.Spec.CPU,
-		RAM:   instance.Spec.MemoryGB,
-		Disk:  instance.Spec.DiskGB,
+		CPU:   instance.CPU,
+		RAM:   instance.MemoryGB,
+		Disk:  instance.DiskGB,
 		State: instance.State,
 	})
 }
 
 func (s Server) sandboxList(w http.ResponseWriter, r *http.Request) error {
-	user, ok := r.Context().Value(userContextKey{}).(auth.User)
+	user, ok := r.Context().Value(userContextKey{}).(app.User)
 	if !ok {
-		return auth.ErrInvalidSession
+		return app.ErrInvalidSession
 	}
 
 	query := r.URL.Query()
-	params := listSandboxesParams{Limit: sandbox.DefaultListLimit}
+	params := listSandboxesParams{Limit: app.DefaultListLimit}
 
 	if raw := query.Get("cursor"); raw != "" {
 		cursor, err := uuid.Parse(raw)
@@ -168,13 +138,10 @@ func (s Server) sandboxList(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	result, err := s.sandboxHandler.List(r.Context(), uuid.UUID(user.ID), params.Cursor, params.Limit)
+	result, err := app.ListSandboxes(r.Context(), s.db, user.ID, params.Cursor, params.Limit)
 	if err != nil {
 		return err
 	}
 
-	return JSONMarshal(w, listSandboxesResponse{
-		Items:      result.Items,
-		NextCursor: null.NewValue(result.NextCursor, result.NextCursor != uuid.Nil()),
-	})
+	return JSONMarshal(w, result)
 }

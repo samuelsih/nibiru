@@ -13,7 +13,6 @@ import (
 	"github.com/ory/dockertest/v4"
 	"github.com/samuelsih/golib/sqlmigration"
 	migrationpgx "github.com/samuelsih/golib/sqlmigration/pgx"
-	"github.com/samuelsih/nibiru/api/pkg/outbox"
 )
 
 var (
@@ -102,7 +101,7 @@ func setup(ctx context.Context, pool dockertest.ClosablePool) error {
 		return fmt.Errorf("Cannot connect nats: %w", err)
 	}
 
-	if err = outbox.EnsureStream(ctx, js); err != nil {
+	if err = OutboxEnsureStream(ctx, js); err != nil {
 		return fmt.Errorf("cannot ensure outbox stream: %w", err)
 	}
 

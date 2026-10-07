@@ -3,15 +3,11 @@ package webapi
 import (
 	"errors"
 	"net/http"
-	"time"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/go-ozzo/ozzo-validation/v4/is"
-	"github.com/guregu/null/v6"
 	"github.com/samuelsih/golib/httpx"
 	"github.com/samuelsih/golib/httpx/pbd"
 	"github.com/samuelsih/golib/oas"
-	"github.com/samuelsih/nibiru/api/app/auth"
+	"github.com/samuelsih/nibiru/api/app"
 )
 
 func (s Server) authErrorHandler() httpx.ErrorHandler {
@@ -19,11 +15,11 @@ func (s Server) authErrorHandler() httpx.ErrorHandler {
 		var status int
 
 		switch {
-		case errors.Is(apperr, auth.ErrEmailDuplicate):
+		case errors.Is(apperr, app.ErrEmailDuplicate):
 			status = http.StatusConflict
-		case errors.Is(apperr, auth.ErrInvalidCredentials), errors.Is(apperr, auth.ErrInvalidSession):
+		case errors.Is(apperr, app.ErrInvalidCredentials), errors.Is(apperr, app.ErrInvalidSession):
 			status = http.StatusUnauthorized
-		case errors.Is(apperr, auth.ErrUserNotFound):
+		case errors.Is(apperr, app.ErrUserNotFound):
 			status = http.StatusNotFound
 		default:
 			return httpx.HandleContinue
@@ -42,7 +38,7 @@ func (s Server) auth() {
 		r.Post("/register", s.authRegister).Spec(oas.Spec{
 			OperationID: "authRegister",
 			Tags:        tag,
-			Body:        oas.SpecBody[registerRequest](),
+			Body:        oas.SpecBody[app.RegisterRequest](),
 			Responses: []oas.ResponseSpec{
 				{Status: http.StatusNoContent, Description: "User registered."},
 			},
@@ -51,12 +47,12 @@ func (s Server) auth() {
 		r.Post("/login", s.authLogin).Spec(oas.Spec{
 			OperationID: "authLogin",
 			Tags:        tag,
-			Body:        oas.SpecBody[loginRequest](),
+			Body:        oas.SpecBody[app.LoginRequest](),
 			Responses: []oas.ResponseSpec{
 				{
 					Status:      http.StatusOK,
 					Description: "Login succeeded and session cookie set.",
-					Body:        oas.SpecBody[userResponse](),
+					Body:        oas.SpecBody[app.User](),
 				},
 			},
 		})
@@ -66,7 +62,7 @@ func (s Server) auth() {
 			Tags:        tag,
 			Security:    securitySchemes,
 			Responses: []oas.ResponseSpec{
-				{Status: http.StatusOK, Description: "Authenticated user.", Body: oas.SpecBody[userResponse]()},
+				{Status: http.StatusOK, Description: "Authenticated user.", Body: oas.SpecBody[app.User]()},
 			},
 		})
 
@@ -81,40 +77,8 @@ func (s Server) auth() {
 	})
 }
 
-type registerRequest struct {
-	Email     string      `json:"email"     example:"admin@gmail.com"`
-	FirstName string      `json:"firstName" example:"Admin"`
-	LastName  null.String `json:"lastName"  example:"New"             required:"false"`
-	Password  string      `json:"password"  example:"Password.1"`
-}
-
-func (r registerRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Email,
-			validation.Required,
-			validation.Length(3, 320),
-			is.Email,
-		),
-		validation.Field(&r.FirstName,
-			validation.Required,
-			validation.Length(5, 100),
-		),
-		validation.Field(&r.LastName, validation.By(func(any) error {
-			if !r.LastName.Valid {
-				return nil
-			}
-
-			return validation.Validate(r.LastName.String, validation.Length(0, 100))
-		})),
-		validation.Field(&r.Password,
-			validation.Required,
-			validation.Length(8, 72),
-		),
-	)
-}
-
 func (s Server) authRegister(w http.ResponseWriter, r *http.Request) error {
-	req, err := JSONUnmarshal[registerRequest](r.Body)
+	req, err := JSONUnmarshal[app.RegisterRequest](r.Body)
 	if err != nil {
 		return err
 	}
@@ -123,13 +87,7 @@ func (s Server) authRegister(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	err = s.authHandler.Register(r.Context(), auth.RegisterRequest{
-		Email:     req.Email,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Password:  req.Password,
-	})
-	if err != nil {
+	if err := app.Register(r.Context(), s.db, req); err != nil {
 		return err
 	}
 
@@ -138,33 +96,8 @@ func (s Server) authRegister(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-type loginRequest struct {
-	Email    string `json:"email"    example:"admin@gmail.com"`
-	Password string `json:"password" example:"Password.1"`
-}
-
-func (r loginRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Email,
-			validation.Required,
-			validation.Length(3, 320),
-			is.Email,
-		),
-		validation.Field(&r.Password,
-			validation.Required,
-		),
-	)
-}
-
-type userResponse struct {
-	Email     string      `json:"email"     example:"admin@gmail.com"`
-	FirstName string      `json:"firstName" example:"Admin"`
-	LastName  null.String `json:"lastName"  example:"New"`
-	CreatedAt time.Time   `json:"createdAt" example:"2026-01-02T15:04:05Z"`
-}
-
 func (s Server) authLogin(w http.ResponseWriter, r *http.Request) error {
-	req, err := JSONUnmarshal[loginRequest](r.Body)
+	req, err := JSONUnmarshal[app.LoginRequest](r.Body)
 	if err != nil {
 		return err
 	}
@@ -173,10 +106,7 @@ func (s Server) authLogin(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	user, session, err := s.authHandler.Login(r.Context(), auth.LoginRequest{
-		Email:    req.Email,
-		Password: req.Password,
-	})
+	user, session, err := app.Login(r.Context(), s.db, s.sessionTTL, req)
 	if err != nil {
 		return err
 	}
@@ -191,26 +121,16 @@ func (s Server) authLogin(w http.ResponseWriter, r *http.Request) error {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	return JSONMarshal(w, userResponse{
-		Email:     user.Email,
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
-		CreatedAt: user.CreatedAt,
-	})
+	return JSONMarshal(w, user)
 }
 
 func (s Server) authMe(w http.ResponseWriter, r *http.Request) error {
-	user, ok := r.Context().Value(userContextKey{}).(auth.User)
+	user, ok := r.Context().Value(userContextKey{}).(app.User)
 	if !ok {
-		return auth.ErrInvalidSession
+		return app.ErrInvalidSession
 	}
 
-	return JSONMarshal(w, userResponse{
-		Email:     user.Email,
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
-		CreatedAt: user.CreatedAt,
-	})
+	return JSONMarshal(w, user)
 }
 
 func (s Server) authLogout(w http.ResponseWriter, r *http.Request) error {
@@ -220,7 +140,7 @@ func (s Server) authLogout(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if err == nil {
-		if err := s.authHandler.Logout(r.Context(), cookie.Value); err != nil {
+		if err := app.Logout(r.Context(), s.db, cookie.Value); err != nil {
 			return err
 		}
 	}

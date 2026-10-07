@@ -1,24 +1,27 @@
-package sandbox
+package app
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 )
 
-type State string
+var ErrInvalidTransition = errors.New("invalid sandbox state transition")
+
+type SandboxState string
 
 const (
-	StateCreating State = "creating"
-	StateRunning  State = "running"
-	StateStopping State = "stopping"
-	StateStopped  State = "stopped"
-	StateStarting State = "starting"
-	StateDeleting State = "deleting"
-	StateDeleted  State = "deleted"
-	StateFailed   State = "failed"
+	StateCreating SandboxState = "creating"
+	StateRunning  SandboxState = "running"
+	StateStopping SandboxState = "stopping"
+	StateStopped  SandboxState = "stopped"
+	StateStarting SandboxState = "starting"
+	StateDeleting SandboxState = "deleting"
+	StateDeleted  SandboxState = "deleted"
+	StateFailed   SandboxState = "failed"
 )
 
-var transitions = map[State][]State{
+var transitions = map[SandboxState][]SandboxState{
 	StateCreating: {StateRunning, StateDeleting, StateFailed},
 	StateRunning:  {StateStopping, StateDeleting, StateFailed},
 	StateStopping: {StateStopped, StateDeleting, StateFailed},
@@ -29,17 +32,13 @@ var transitions = map[State][]State{
 	StateDeleted:  nil,
 }
 
-func (s State) Terminal() bool {
-	return s == StateDeleted
-}
-
-func (s State) CanTransitionTo(next State) bool {
+func (s SandboxState) CanTransitionTo(next SandboxState) bool {
 	return slices.Contains(transitions[s], next)
 }
 
 type TransitionError struct {
-	From State
-	To   State
+	From SandboxState
+	To   SandboxState
 }
 
 func (e *TransitionError) Error() string {

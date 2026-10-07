@@ -1,4 +1,4 @@
-package sandbox
+package app
 
 import (
 	"testing"
@@ -6,29 +6,11 @@ import (
 	"github.com/samuelsih/golib/assert"
 )
 
-func TestStateTerminal(t *testing.T) {
-	assert.True(t, StateDeleted.Terminal())
-
-	tests := []State{
-		StateCreating,
-		StateRunning,
-		StateStopping,
-		StateStopped,
-		StateStarting,
-		StateDeleting,
-		StateFailed,
-	}
-
-	for _, state := range tests {
-		assert.False(t, state.Terminal())
-	}
-}
-
-func TestStateCanTransitionTo(t *testing.T) {
+func TestSandboxStateCanTransitionTo(t *testing.T) {
 	tests := []struct {
 		name string
-		from State
-		to   State
+		from SandboxState
+		to   SandboxState
 		want bool
 	}{
 		{name: "creating to running", from: StateCreating, to: StateRunning, want: true},

@@ -16,7 +16,7 @@ import (
 	"github.com/samuelsih/golib/httpx"
 	"github.com/samuelsih/golib/slogx"
 	"github.com/samuelsih/nibiru/api"
-	"github.com/samuelsih/nibiru/api/pkg/outbox"
+	"github.com/samuelsih/nibiru/api/app"
 	"github.com/samuelsih/nibiru/api/webapi"
 )
 
@@ -60,11 +60,11 @@ func run(ctx context.Context) error {
 
 	defer js.Conn().Close()
 
-	if err = outbox.EnsureStream(rootCtx, js); err != nil {
+	if err = app.OutboxEnsureStream(rootCtx, js); err != nil {
 		return fmt.Errorf("cannot ensure outbox stream: %w", err)
 	}
 
-	go outbox.Poll(rootCtx, db, js)
+	go app.OutboxPoll(rootCtx, db, js)
 
 	httpHandler := conf.Webserver()
 

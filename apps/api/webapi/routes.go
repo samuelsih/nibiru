@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,8 +16,6 @@ import (
 	"github.com/samuelsih/golib/oas"
 	"github.com/samuelsih/golib/slogx"
 	"github.com/samuelsih/nibiru/api"
-	"github.com/samuelsih/nibiru/api/app/auth"
-	"github.com/samuelsih/nibiru/api/app/sandbox"
 )
 
 const (
@@ -30,8 +29,8 @@ var (
 type Server struct {
 	*oas.APIServer
 
-	authHandler    auth.Handler
-	sandboxHandler sandbox.Handler
+	db         *pgxpool.Pool
+	sessionTTL time.Duration
 
 	sessionCookieName   string
 	sessionCookieSecure bool
@@ -40,8 +39,8 @@ type Server struct {
 func Init(r *oas.APIServer, cfg api.Config, db *pgxpool.Pool) {
 	server := Server{
 		APIServer:           r,
-		authHandler:         auth.NewHandler(db, cfg.SessionTTL),
-		sandboxHandler:      sandbox.NewHandler(db),
+		db:                  db,
+		sessionTTL:          cfg.SessionTTL,
 		sessionCookieName:   cfg.SessionCookieName,
 		sessionCookieSecure: cfg.SessionCookieSecure,
 	}

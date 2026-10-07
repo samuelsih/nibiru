@@ -1,16 +1,18 @@
-package trx
+package app
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// WithTx runs fn inside a database transaction.
+var builder = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
 func WithTx(ctx context.Context, db *pgxpool.Pool, fn func(pgx.Tx) error) (err error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -38,9 +40,7 @@ func WithTx(ctx context.Context, db *pgxpool.Pool, fn func(pgx.Tx) error) (err e
 	return err
 }
 
-// IsErrorDuplicate reports whether err is a Postgres unique-constraint violation.
 func IsErrorDuplicate(err error) bool {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-
 	return ok && pgErr.Code == "23505"
 }

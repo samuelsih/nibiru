@@ -10,7 +10,7 @@ import (
 
 	"github.com/samuelsih/golib/httpx"
 	"github.com/samuelsih/golib/httpx/pbd"
-	"github.com/samuelsih/nibiru/api/app/auth"
+	"github.com/samuelsih/nibiru/api/app"
 )
 
 type userContextKey struct{}
@@ -20,10 +20,10 @@ func (s Server) MiddlewareAuthenticated() httpx.Middleware {
 		return func(w http.ResponseWriter, r *http.Request) error {
 			cookie, err := r.Cookie(s.sessionCookieName)
 			if err != nil {
-				return auth.ErrInvalidSession
+				return app.ErrInvalidSession
 			}
 
-			user, err := s.authHandler.WhoAmI(r.Context(), cookie.Value)
+			user, err := app.WhoAmI(r.Context(), s.db, cookie.Value)
 			if err != nil {
 				return err
 			}
