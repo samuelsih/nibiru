@@ -94,8 +94,7 @@ func (s Server) sandboxCreate(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
+ 	w.WriteHeader(http.StatusCreated)
 
 	return JSONMarshal(w, app.SandboxSummary{
 		ID:    instance.ID,

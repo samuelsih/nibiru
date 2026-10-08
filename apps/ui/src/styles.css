@@ -1,1 +1,8 @@
 @import "tailwindcss";
+@import "reshaped/themes/slate/tailwind.css";
+
+@utility layout {
+  max-width: 68.75rem;
+  width: 90%;
+  margin-inline: auto;
+}

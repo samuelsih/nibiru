@@ -6,5 +6,5 @@ export default defineConfig({
   trailingComma: "all",
   sortImports: true,
   sortPackageJson: true,
-  ignorePatterns: ["src/routeTree.gen.ts"],
+  ignorePatterns: ["src/routeTree.gen.ts", "src/client/**"],
 });

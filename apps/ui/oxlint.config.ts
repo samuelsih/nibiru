@@ -3,7 +3,7 @@ import { defineConfig } from "oxlint";
 export default defineConfig({
   plugins: ["react", "jsx-a11y", "import", "promise", "unicorn", "typescript", "oxc"],
 
-  ignorePatterns: ["src/routeTree.gen.ts"],
+  ignorePatterns: ["src/routeTree.gen.ts", "src/client/**"],
 
   categories: {
     correctness: "error",
