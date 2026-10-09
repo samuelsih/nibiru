@@ -1,6 +1,23 @@
 @import "tailwindcss";
 @import "reshaped/themes/slate/tailwind.css";
 
+:root {
+  --font-jakarta: "Plus Jakarta Sans Variable", sans-serif;
+}
+
+@theme {
+  --font-sans: var(--font-jakarta);
+}
+
+:root[data-rs-theme] {
+  --rs-font-family-body: var(--font-jakarta);
+  --rs-font-family-title: var(--font-jakarta);
+  --rs-font-family-headline: var(--font-jakarta);
+
+  --rs-outline-shadow: 0 0 0 var(--rs-outline-width) var(--rs-color-foreground-neutral-faded) inset;
+  --rs-outline: var(--rs-outline-width) solid var(--rs-color-foreground-neutral-faded);
+}
+
 @utility layout {
   max-width: 68.75rem;
   width: 90%;

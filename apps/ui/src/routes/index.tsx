@@ -16,7 +16,7 @@ function Home() {
       overflow="hidden"
     >
       <View position="absolute" insetTop={3} insetEnd={0}>
-        <Button variant="solid" color="neutral" size="small" href="/dashboard">
+        <Button variant="solid" size="small" href="/dashboard">
           Dashboard
         </Button>
       </View>
@@ -32,7 +32,7 @@ function Home() {
         sandbox platform
       </Text>
 
-      <Text variant="body-1" color="neutral" as="p" className="max-w-xl" wrap="balance">
+      <Text variant="body-1" as="p" className="max-w-xl" wrap="balance">
         Spin up isolated sandboxes for your agents and code, with persistent files and a simple API,
         all running on infrastructure you own.
       </Text>

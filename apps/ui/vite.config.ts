@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import babel from "@rolldown/plugin-babel";
 import babelPluginReactifx from "@samuelsih/babel-plugin-reactifx";
 import tailwindcss from "@tailwindcss/vite";
@@ -16,4 +18,9 @@ export default defineConfig({
       plugins: [babelPluginReactifx()],
     }),
   ],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
 });
