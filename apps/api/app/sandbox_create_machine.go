@@ -25,7 +25,7 @@ type CreateSandboxRequest struct {
 
 func (r CreateSandboxRequest) Validate() error {
 	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Length(0, 255)),
+		validation.Field(&r.Name, validation.Required, validation.Length(5, 255)),
 		validation.Field(&r.CPU, validation.Required, validation.Min(1), validation.Max(32)),
 		validation.Field(&r.MemoryGB, validation.Required, validation.Min(1), validation.Max(128)),
 		validation.Field(&r.DiskGB, validation.Required, validation.Min(1), validation.Max(500)),

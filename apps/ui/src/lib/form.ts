@@ -1,5 +1,6 @@
 import { createFormHook, createFormHookContexts, type AnyFormApi } from "@tanstack/react-form";
 
+import { FormNumberField } from "@/components/form/NumberField";
 import { FormTextField } from "@/components/form/TextField";
 import type { ProblemDetail } from "@/lib/http";
 
@@ -10,6 +11,7 @@ export const { useAppForm } = createFormHook({
   formContext,
   fieldComponents: {
     TextField: FormTextField,
+    NumberField: FormNumberField,
   },
   formComponents: {},
 });

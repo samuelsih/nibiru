@@ -13,13 +13,13 @@ func ListSandboxesByOwner(ctx context.Context, db *pgxpool.Pool, ownerID, cursor
 	q := builder.
 		Select("id", "name", "cpu", "memory_gb", "disk_gb", "state").
 		From("sandboxes").
-		Where(sq.Eq{"owner_id": ownerID}).
+		Where(sq.Eq{"owner_id": ownerID.String()}).
 		Where(sq.NotEq{"state": StateDeleted}).
 		OrderBy("id DESC").
 		Limit(uint64(limit))
 
 	if cursor != uuid.Nil() {
-		q = q.Where(sq.Lt{"id": cursor})
+		q = q.Where(sq.Lt{"id": cursor.String()})
 	}
 
 	query, args, err := q.ToSql()
