@@ -1,0 +1,20 @@
+version: "3"
+
+tasks:
+  dev:
+    desc: Run `go run cmd/runner/main.go`
+    dotenv:
+      - .env
+    cmd: go run cmd/runner/main.go
+
+  test:
+    desc: Run all tests with the race detector
+    cmd: go test -race -count=1 ./...
+
+  goget:
+    desc: Go get package
+    cmd: go get -- {{.CLI_ARGS}}
+
+  tidy:
+    desc: Go mod tidy
+    cmd: go mod tidy

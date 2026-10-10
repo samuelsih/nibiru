@@ -5,3 +5,7 @@ includes:
     taskfile: ./apps/api/Taskfile.yaml
     dir: ./apps/api
     flatten: false
+  runner:
+    taskfile: ./apps/runner/Taskfile.yaml
+    dir: ./apps/runner
+    flatten: false
