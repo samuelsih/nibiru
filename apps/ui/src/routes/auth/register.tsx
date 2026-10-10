@@ -1,11 +1,15 @@
+import { If } from "@samuelsih/reactifx";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { Button, Text, useToggle, View } from "reshaped";
+import { Alert, Button, Text, useToggle, View } from "reshaped";
 import * as v from "valibot";
 
-import { authRegister } from "@/client/nibiru";
+import type { RegisterRequest } from "@/client/model";
+import { authRegister } from "@/client";
 import { RouteLink } from "@/components/RouteLink";
-import { useAppForm } from "@/lib/form";
+import { setProblemErrors, useAppForm } from "@/lib/form";
+import { toProblemDetail, unwrapResponse } from "@/lib/http";
 
 const schema = v.object({
   firstName: v.pipe(
@@ -35,7 +39,15 @@ export const Route = createFileRoute("/auth/register")({
 });
 
 function RouteComponent() {
+  const navigate = Route.useNavigate();
   const passwordToggle = useToggle();
+
+  const register = useMutation({
+    mutationFn: (value: RegisterRequest) => unwrapResponse(authRegister(value)),
+    onError: (error) => setProblemErrors(form, toProblemDetail(error)),
+    onSuccess: () => navigate({ to: "/auth/login" }),
+  });
+
   const form = useAppForm({
     defaultValues: {
       firstName: "",
@@ -46,10 +58,13 @@ function RouteComponent() {
     validators: {
       onChange: schema,
     },
-    onSubmit: async ({ value }) => {
-      await authRegister(value);
+    onSubmit: ({ value, formApi }) => {
+      setProblemErrors(formApi);
+      register.mutate(value);
     },
   });
+
+  const problem = toProblemDetail(register.error);
 
   return (
     <View className="layout" direction="column" align="center" justify="center" height="100dvh">
@@ -121,13 +136,14 @@ function RouteComponent() {
           </form.AppField>
 
           <View direction="column" gap={3} paddingTop={2}>
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <Button type="submit" variant="solid" fullWidth loading={isSubmitting}>
-                  Create account
-                </Button>
-              )}
-            </form.Subscribe>
+            <If cond={register.isError && problem.status !== 422}>
+              <Alert color="critical" title={problem.title}>
+                {problem.detail}
+              </Alert>
+            </If>
+            <Button type="submit" variant="solid" fullWidth loading={register.isPending}>
+              Create account
+            </Button>
           </View>
         </form>
 
