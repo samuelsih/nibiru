@@ -20,7 +20,7 @@ export function toProblemDetail(error: unknown): ProblemDetail {
   return {
     type: "about:blank",
     status: 500,
-    title: "Internal Server Error",
+    title: "Internal server error, please try again later",
     detail: error instanceof Error ? error.message : "Something went wrong.",
   };
 }

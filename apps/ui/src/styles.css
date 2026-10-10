@@ -23,3 +23,10 @@
   width: 90%;
   margin-inline: auto;
 }
+
+.menu {
+  --rs-color-background-primary-highlighted-faded: var(
+    --rs-color-background-neutral-highlighted-faded
+  );
+  --rs-color-foreground-primary: var(--rs-color-foreground-neutral);
+}

@@ -91,6 +91,8 @@ func (s Server) fallbackErrorHandler() httpx.ErrorHandler {
 		default:
 			status = http.StatusInternalServerError
 			slog.Error("unhandled error", slogx.ErrorAttr(apperr))
+			_ = pbd.New(status, pbd.WithDetail("Internal server error, please try again later")).Write(w)
+			return httpx.HandleStop
 		}
 
 		_ = pbd.New(status, pbd.WithDetail(apperr.Error())).Write(w)

@@ -12,6 +12,9 @@ import { getRouter } from "@/router";
 
 const queryClient = new QueryClient();
 
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (input, init) => nativeFetch(input, { ...init, credentials: "include" });
+
 const rootElement = document.getElementById("root");
 if (!rootElement) {
   throw new Error("Root element #root not found");

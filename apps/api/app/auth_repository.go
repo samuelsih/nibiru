@@ -65,7 +65,7 @@ func FindUserByEmail(ctx context.Context, tx pgx.Tx, email string) (User, error)
 func FindUserByID(ctx context.Context, db *pgxpool.Pool, id uuid.UUID) (User, error) {
 	query, args, err := builder.Select("id", "email", "password", "first_name", "last_name", "created_at").
 		From("users").
-		Where(sq.Eq{"id": id}).
+		Where(sq.Eq{"id": id.String()}).
 		ToSql()
 	if err != nil {
 		return User{}, err

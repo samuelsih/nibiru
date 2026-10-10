@@ -72,7 +72,12 @@ func run(ctx context.Context) error {
 		httpx.MiddlewareRequestID(),
 		webapi.MiddlewareLogger(),
 		httpx.MiddlewareMaxBytes(10*1024*1024),
-		httpx.CORSAllowAll().Handler,
+		httpx.NewCORS(httpx.CORSOptions{
+			AllowedOrigins:   []string{"http://localhost:5173"},
+			AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
+			AllowedHeaders:   []string{"*"},
+			AllowCredentials: true,
+		}).Handler,
 		httpx.MiddlewareTimeout(conf.ServerRequestTimeout),
 	)
 
